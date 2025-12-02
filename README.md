@@ -1,2 +1,3 @@
-# scene_rasterization
-Final project for CSCI 1230 Introduction to Computer Graphics
+# Project 6: Final Project Gear Up
+
+The project handout can be found [here](https://cs1230.graphics/projects/final/gear-up/).
