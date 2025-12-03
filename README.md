@@ -1,2 +1,3 @@
-# scene_rasterization
-Final project for CSCI 1230 Introduction to Computer Graphics
+# Glew Library for CS 1230
+
+Last updated on 8/30/22
