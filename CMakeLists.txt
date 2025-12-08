@@ -52,6 +52,8 @@ add_executable(${PROJECT_NAME}
     src/camera.h src/camera.cpp
     src/transforms.h src/transforms.cpp
     src/utils/tiny_obj_loader.h
+    src/utils/imagereader.h src/utils/imagereader.cpp
+    src/utils/rgba.h
 )
 
 # GLM: this creates its library and allows you to `#include "glm/..."`
