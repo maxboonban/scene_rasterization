@@ -2,10 +2,34 @@
 #include "iostream"
 
 void Realtime::makeFBO() {
-    // color texture
+    // // color texture
+    // glGenTextures(1, &m_fbo_texture);
+    // glActiveTexture(GL_TEXTURE0);
+    // glBindTexture(GL_TEXTURE_2D, m_fbo_texture);
+    // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, m_fbo_width, m_fbo_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    // glBindTexture(GL_TEXTURE_2D, 0);
+
+    // Delete old textures if they exist
+    if (m_fbo_texture != 0) glDeleteTextures(1, &m_fbo_texture);
+    if (m_fbo_bloom_bright != 0) glDeleteTextures(1, &m_fbo_bloom_bright);
+    if (m_fbo_depth != 0) glDeleteTextures(1, &m_fbo_depth);
+    if (m_fbo != 0) glDeleteFramebuffers(1, &m_fbo);
+
+    // Main scene color texture (attachment 0)
     glGenTextures(1, &m_fbo_texture);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, m_fbo_texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, m_fbo_width, m_fbo_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    // Bright colors texture for bloom (attachment 1)
+    glGenTextures(1, &m_fbo_bloom_bright);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, m_fbo_bloom_bright);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, m_fbo_width, m_fbo_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
