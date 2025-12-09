@@ -64,6 +64,9 @@ add_executable(${PROJECT_NAME}
     src/trimeshes.cpp
 
 
+    src/utils/tiny_obj_loader.h 
+    src/utils/imagereader.h src/utils/imagereader.cpp
+    src/utils/rgba.h
 
 
 )

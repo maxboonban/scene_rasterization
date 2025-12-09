@@ -321,16 +321,6 @@ void Realtime::paintGeometry() {
     for (const RenderShapeData &shape : m_renderData.shapes) {
         PrimitiveType t = shape.primitive.type;
 
-        bool isAnalytic =
-            (t == PrimitiveType::PRIMITIVE_CUBE     ||
-             t == PrimitiveType::PRIMITIVE_CONE     ||
-             t == PrimitiveType::PRIMITIVE_SPHERE   ||
-             t == PrimitiveType::PRIMITIVE_CYLINDER);
-
-        if (!isAnalytic) {
-            continue;
-        }
-
         if (objIdx >= m_objects.size()) break;
         GLShape &obj = m_objects[objIdx++];
 
@@ -514,6 +504,9 @@ void Realtime::rebuildScene() {
         }
         case PrimitiveType::PRIMITIVE_CYLINDER: {
             Cylinder c; c.updateParams(p1, p2); data = c.generateShape(); break;
+        }
+        case PrimitiveType::PRIMITIVE_MESH: {
+            data = s.triData; break;
         }
         default:
             // PRIMITIVE_MESH handled elsewhere via m_meshes
