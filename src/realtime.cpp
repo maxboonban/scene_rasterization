@@ -98,8 +98,17 @@ void Realtime::initializeGL() {
     m_shadow_shader = ShaderLoader::createShaderProgram("resources/shaders/shadowmap.vert",
                                                         "resources/shaders/shadowmap.frag");
 
+    // Bloom shaders
+    m_bloom_extract_shader = ShaderLoader::createShaderProgram("resources/shaders/texture.vert",
+                                                               "resources/shaders/bloom_extract.frag");
+    m_blur_shader = ShaderLoader::createShaderProgram("resources/shaders/texture.vert",
+                                                      "resources/shaders/blur.frag");
+    m_bloom_composite_shader = ShaderLoader::createShaderProgram("resources/shaders/texture.vert",
+                                                                 "resources/shaders/bloom_composite.frag");
+
     initializeFBO();
     initializeShadowFBO();
+    initializeBloomFBOs();
     loadHeightMap2D("resources/images/pattern.png");
 }
 
