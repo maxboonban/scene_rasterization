@@ -1,4 +1,4 @@
-# Install script for directory: /Users/jasmineliu/Documents/CSCI1230/projects/project-6-final-project-gear-up-jasmineliu0114/glm
+# Install script for directory: /Users/maxwirattawut/Developer/scene_rasterization/glm
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
