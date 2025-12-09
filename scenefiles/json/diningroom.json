@@ -17,44 +17,83 @@
 
   "groups": [
     {
-      "translate": [1.566279, 5.014775, 0],
+      "translate": [0.644722, 2.874063, -4.706884],
+
+      "lights": [
+        {
+          "type": "spot",
+          "color": [1.0, 0.95, 0.85],
+          "direction": [0.0, -1.0, 0.0],
+          "attenuationCoeff": [1.0, 0.1, 0.01],
+          "angle": 30.0,
+          "penumbra": 10.0
+        }
+      ],
+
+      "groups": [
+        {
+          "translate": [0.0, -0.65, 0.0],
+          "scale": [0.22, 0.22, 0.22],
+          "primitives": [
+            {
+              "type": "sphere",
+
+              "ambient":  [ 6.0, 5.5, 4.5 ],
+              "diffuse":  [ 1.2, 1.1, 0.9 ],
+              "specular": [ 0.0, 0.0, 0.0 ],
+              "shininess": 5.0
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "translate": [2.487836, 2.874063, -4.706884],
+
+      "lights": [
+        {
+          "type": "spot",
+          "color": [1.0, 0.95, 0.85],
+          "direction": [0.0, -1.0, 0.0],
+          "attenuationCoeff": [1.0, 0.1, 0.01],
+          "angle": 30.0,
+          "penumbra": 10.0
+        }
+      ],
+
+      "groups": [
+        {
+          "translate": [0.0, -0.65, 0.0],
+          "scale": [0.22, 0.22, 0.22],
+          "primitives": [
+            {
+              "type": "sphere",
+
+              "ambient":  [ 6.0, 5.5, 4.5 ],
+              "diffuse":  [ 1.2, 1.1, 0.9 ],
+              "specular": [ 0.0, 0.0, 0.0 ],
+              "shininess": 5.0
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "translate": [1.566279, 5.014775, 0.0],
       "lights": [
         {
           "type": "spot",
           "color": [1.0, 1.0, 1.0],
-          "direction": [0.0, -1.0, 0.0], 
+          "direction": [0.0, -1.0, 0.0],
           "attenuationCoeff": [1.0, 0.0, 0.01],
           "angle": 360.0,
           "penumbra": 360.0
         }
       ]
     },
-    {
-      "translate": [0.644722, 2.874063, -4.706884],
-      "lights": [
-        {
-          "type": "spot",
-          "color": [1.0, 0.95, 0.85],
-          "direction": [0.0, -1.0, 0.0], 
-          "attenuationCoeff": [1.0, 0.1, 0.01],
-          "angle": 30.0,
-          "penumbra": 10.0
-        }
-      ]
-    },
-    {
-      "translate": [2.487836, 2.874063, -4.706884],
-      "lights": [
-        {
-          "type": "spot",
-          "color": [1.0, 0.95, 0.85],
-          "direction": [0.0, -1.0, 0.0], 
-          "attenuationCoeff": [1.0, 0.1, 0.01],
-          "angle": 30.0,
-          "penumbra": 10.0
-        }
-      ]
-    },
+
     {
       "primitives": [
         {
