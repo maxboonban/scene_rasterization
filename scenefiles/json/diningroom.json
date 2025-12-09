@@ -1,0 +1,72 @@
+{
+  "name": "root",
+
+  "globalData": {
+    "ambientCoeff": 0.5,
+    "diffuseCoeff": 0.5,
+    "specularCoeff": 0.5,
+    "transparentCoeff": 0.0
+  },
+
+  "cameraData": {
+    "position": [ -6.0, 4.0, 8.0 ],
+    "up":       [ 0.0, 1.0, 0.0 ],
+    "focus":    [ 0.0, 1.0, 0.0 ],
+    "heightAngle": 30.0
+  },
+
+  "groups": [
+    {
+      "translate": [1.566279, 5.014775, 0],
+      "lights": [
+        {
+          "type": "spot",
+          "color": [1.0, 1.0, 1.0],
+          "direction": [0.0, -1.0, 0.0], 
+          "attenuationCoeff": [1.0, 0.0, 0.01],
+          "angle": 360.0,
+          "penumbra": 360.0
+        }
+      ]
+    },
+    {
+      "translate": [0.644722, 2.874063, -4.706884],
+      "lights": [
+        {
+          "type": "spot",
+          "color": [1.0, 0.95, 0.85],
+          "direction": [0.0, -1.0, 0.0], 
+          "attenuationCoeff": [1.0, 0.1, 0.01],
+          "angle": 30.0,
+          "penumbra": 10.0
+        }
+      ]
+    },
+    {
+      "translate": [2.487836, 2.874063, -4.706884],
+      "lights": [
+        {
+          "type": "spot",
+          "color": [1.0, 0.95, 0.85],
+          "direction": [0.0, -1.0, 0.0], 
+          "attenuationCoeff": [1.0, 0.1, 0.01],
+          "angle": 30.0,
+          "penumbra": 10.0
+        }
+      ]
+    },
+    {
+      "primitives": [
+        {
+          "type": "mesh",
+          "meshFile": "mesh/diningroom.obj",
+
+          "ambient":  [ 0.1, 0.1, 0.1 ],
+          "diffuse":  [ 1.0, 1.0, 1.0 ],
+          "specular": [ 0.2, 0.2, 0.2 ],
+          "shininess": 15.0
+        }
+      ]
+    }
+  ]
+}

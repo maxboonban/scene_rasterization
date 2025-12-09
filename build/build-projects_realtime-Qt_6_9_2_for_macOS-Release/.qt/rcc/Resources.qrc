@@ -1,0 +1,11 @@
+<RCC>
+  <qresource prefix="/">
+    <file alias="resources/shaders/default.frag">/Users/jasmineliu/Documents/CSCI1230/projects/project-6-final-project-gear-up-jasmineliu0114/resources/shaders/default.frag</file>
+    <file alias="resources/shaders/default.vert">/Users/jasmineliu/Documents/CSCI1230/projects/project-6-final-project-gear-up-jasmineliu0114/resources/shaders/default.vert</file>
+    <file alias="resources/shaders/texture.vert">/Users/jasmineliu/Documents/CSCI1230/projects/project-6-final-project-gear-up-jasmineliu0114/resources/shaders/texture.vert</file>
+    <file alias="resources/shaders/texture.frag">/Users/jasmineliu/Documents/CSCI1230/projects/project-6-final-project-gear-up-jasmineliu0114/resources/shaders/texture.frag</file>
+    <file alias="resources/shaders/shadowmap.vert">/Users/jasmineliu/Documents/CSCI1230/projects/project-6-final-project-gear-up-jasmineliu0114/resources/shaders/shadowmap.vert</file>
+    <file alias="resources/shaders/shadowmap.frag">/Users/jasmineliu/Documents/CSCI1230/projects/project-6-final-project-gear-up-jasmineliu0114/resources/shaders/shadowmap.frag</file>
+  </qresource>
+</RCC>
+
