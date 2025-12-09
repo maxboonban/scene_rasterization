@@ -137,6 +137,16 @@ private:
     void initializeFBO();
     void paintTexture(GLuint colorTexture, GLuint depthTexture);
 
+    // Bloom
+    GLuint m_fbo_bloom_bright;      // Texture for bright colors extracted from scene
+    GLuint m_fbo_pingpong[2];       // Ping-pong FBOs for blurring
+    GLuint m_fbo_pingpong_texture[2]; // Textures for ping-pong blur
+    GLuint m_bloom_extract_shader;   // Shader to extract bright colors
+    GLuint m_blur_shader;            // Shader for Gaussian blur
+    GLuint m_bloom_composite_shader; // Shader to composite scene + bloom
+    void initializeBloomFBOs();
+    void renderBloom();
+
     //
     // Shadow mapping
     //
