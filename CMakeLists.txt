@@ -105,6 +105,7 @@ qt6_add_resources(${PROJECT_NAME} "Resources"
         "resources/textures/Tace Map.jpg"
         "resources/textures/Teask.jpg"
         "resources/textures/Wood.jpg"
+	resources/images/pattern.png
 )
 
 # GLEW: this provides support for Windows (including 64-bit)

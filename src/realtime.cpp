@@ -133,10 +133,10 @@ void Realtime::buildShape(GLShape &shape,
     // ------------------------------------------------------------
     int floatsPerVertex = 0;
 
-    if (data.size() % 6 == 0) {
-        floatsPerVertex = 6;
-    } else if (data.size() % 8 == 0) {
+    if (data.size() % 8 == 0) {
         floatsPerVertex = 8;
+    } else if (data.size() % 6 == 0) {
+        floatsPerVertex = 6;
     } else if (data.size() % 3 == 0) {
         floatsPerVertex = 3;
     } else {

@@ -69,12 +69,10 @@ void Realtime::paintGeometry() {
     int fbHeight = height() * m_devicePixelRatio;
     float aspect = float(fbWidth) / float(fbHeight);
 
-    // KEEP your camera system
+    // Camera transforms
     glm::mat4 view = m_camera.getViewMatrix();
     glm::mat4 proj = m_camera.getProjectionMatrix(
-        aspect,
-        settings.nearPlane,
-        settings.farPlane
+        aspect, settings.nearPlane, settings.farPlane
         );
 
     m_view = view;
@@ -90,8 +88,9 @@ void Realtime::paintGeometry() {
                  1, glm::value_ptr(camPos));
 
     // ===============================================================
-    // SHADOWS — unchanged from your working pipeline
+    // SHADOWS — FIXED TEXTURE UNIT ASSIGNMENT
     // ===============================================================
+
     bool useDepthShadows = (settings.extraCredit4 != 0);
 
     glUniform1i(glGetUniformLocation(m_shader, "shadowSize"),
@@ -102,77 +101,95 @@ void Realtime::paintGeometry() {
     int nLights = std::min<int>(numLights, m_renderData.lights.size());
     glUniform1i(glGetUniformLocation(m_shader, "numLights"), nLights);
 
+    int SHADOW_BASE = 1;  // shadow maps will use texture units 1,2,3,...
+
     if (useDepthShadows) {
         for (int i = 0; i < nLights; i++) {
+
+            // ---- upload light MVP ----
             std::string mvpName = "lightMVPs[" + std::to_string(i) + "]";
             glUniformMatrix4fv(glGetUniformLocation(m_shader, mvpName.c_str()),
                                1, GL_FALSE, &m_light_MVPs[i][0][0]);
 
-            glActiveTexture(GL_TEXTURE0 + i);
+            // ---- bind shadow map texture ----
+            int unit = SHADOW_BASE + i; // texture unit 1,2,3,...
+
+            glActiveTexture(GL_TEXTURE0 + unit);
             glBindTexture(GL_TEXTURE_2D, m_shadow_maps[i]);
+
             std::string smName = "shadowMaps[" + std::to_string(i) + "]";
-            glUniform1i(glGetUniformLocation(m_shader, smName.c_str()), i);
+            glUniform1i(glGetUniformLocation(m_shader, smName.c_str()), unit);
         }
     }
 
     // ===============================================================
-    // --- BUMP MAPPING (added, does not affect anything else) ------
+    // --- BUMP MAP (height map) — uses unit AFTER shadow maps -------
     // ===============================================================
 
     if (m_height_map != 0) {
-        int bumpSlot = nLights;  // after shadow textures
+        int BUMP_UNIT = SHADOW_BASE + nLights;  // e.g., if 2 lights → unit 3
 
-        glActiveTexture(GL_TEXTURE0 + bumpSlot);
+        glActiveTexture(GL_TEXTURE0 + BUMP_UNIT);
         glBindTexture(GL_TEXTURE_2D, m_height_map);
-        glUniform1i(glGetUniformLocation(m_shader, "heightMap"), bumpSlot);
 
-        float bumpScale = 2.f; // or settings.bumpScale
+        glUniform1i(glGetUniformLocation(m_shader, "heightMap"), BUMP_UNIT);
+
+        float bumpScale = 2.f;
         glUniform1f(glGetUniformLocation(m_shader, "bumpScale"), bumpScale);
     }
 
     // ===============================================================
-    // DRAW primitives (your system preserved 100%)
+    // DRAW ANALYTIC PRIMITIVES (unchanged, but texture-unit–safe)
     // ===============================================================
 
     size_t objIdx = 0;
     for (const RenderShapeData &shape : m_renderData.shapes) {
         if (objIdx >= m_objects.size()) break;
+
         GLShape &obj = m_objects[objIdx++];
 
         m_model       = obj.model;
         m_normalModel = glm::transpose(glm::inverse(obj.model));
+
         glUniformMatrix4fv(glGetUniformLocation(m_shader, "model"),
                            1, GL_FALSE, &m_model[0][0]);
         glUniformMatrix4fv(glGetUniformLocation(m_shader, "normalModel"),
                            1, GL_FALSE, &m_normalModel[0][0]);
 
-        // regular texture support
+        // ===========================================================
+        // DIFFUSE / ALBEDO TEXTURE — ALWAYS TEXTURE UNIT 0
+        // ===========================================================
+
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, m_mesh_texture);
         glUniform1i(glGetUniformLocation(m_shader, "sampler"), 0);
 
         if (shape.primitive.material.textureMap.isUsed) {
             glUniform1i(glGetUniformLocation(m_shader, "useTexture"), 1);
-            QImage m_image = shape.primitive.material.textureMap.texture;
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, m_image.width(), m_image.height(),
-                         0, GL_RGBA, GL_UNSIGNED_BYTE, m_image.bits());
+
+            QImage img = shape.primitive.material.textureMap.texture;
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA,
+                         img.width(), img.height(),
+                         0, GL_RGBA, GL_UNSIGNED_BYTE, img.bits());
+        } else {
+            glUniform1i(glGetUniformLocation(m_shader, "useTexture"), 0);
         }
 
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-        // Material + lights
+        // material + lights
         shader(shape, m_renderData.lights);
 
-        // Draw call
+        // === DRAW ===
         glBindVertexArray(obj.vao);
         glDrawArrays(obj.mode, 0, obj.count);
-        glBindTexture(GL_TEXTURE_2D, 0);
     }
 
     glBindVertexArray(0);
     glUseProgram(0);
 }
+
 
 void Realtime::loadHeightMap2D(const std::string &filename) {
     QImage img(QString::fromStdString(filename));
