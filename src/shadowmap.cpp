@@ -70,102 +70,95 @@ glm::mat4 manualOrtho(float left, float right,
     return M;
 }
 
-// ================================================================
-// Manual PERSPECTIVE matrix
-// fovy is in radians
-// ================================================================
-glm::mat4 manualPerspective(float fovy, float aspect, float near, float far)
-{
-    float t = tan(fovy * 0.5f);
-
-    glm::mat4 M(0.0f);
-    M[0][0] = 1.0f / (aspect * t);
-    M[1][1] = 1.0f / t;
-    M[2][2] = -(far + near) / (far - near);
-    M[2][3] = -1.0f;
-    M[3][2] = -(2.0f * far * near) / (far - near);
-    return M;
-}
-
-// ================================================================
-// Manual LOOKAT matrix
-// ================================================================
-glm::mat4 manualLookAt(glm::vec3 eye, glm::vec3 center, glm::vec3 up)
-{
-    glm::vec3 z = glm::normalize(eye - center);   // forward
-    glm::vec3 x = glm::normalize(glm::cross(up, z)); // right
-    glm::vec3 y = glm::cross(z, x);               // true up
-
-    glm::mat4 M(1.0f);
-    M[0][0] = x.x;  M[1][0] = x.y;  M[2][0] = x.z;  M[3][0] = -glm::dot(x, eye);
-    M[0][1] = y.x;  M[1][1] = y.y;  M[2][1] = y.z;  M[3][1] = -glm::dot(y, eye);
-    M[0][2] = z.x;  M[1][2] = z.y;  M[2][2] = z.z;  M[3][2] = -glm::dot(z, eye);
-
-    return M;
-}
-
-
 void Realtime::computeLightMVPs() {
-    if (!m_light_MVPs.empty()) {
+    // Re-sync numLights with the actual lights in the scene,
+    // in case the scene changed after initializeShadowDepths().
+    numLights = std::min<int>((int)m_renderData.lights.size(), 8);
+
+    if (numLights == 0) {
         m_light_MVPs.clear();
+        return;
     }
+
+    m_light_MVPs.assign(numLights, glm::mat4(1.0f));
+
+    // Shadow near/far planes (separate from the camera's near/far)
+    const float shadowNear = 0.1f;
+    const float shadowFar  = 50.0f;
+
+    // Rough "scene radius" for directional light coverage
+    const float sceneRadius = 15.0f;
+    const glm::vec3 sceneCenter(0.0f);
 
     std::vector<SceneLightData> &lights = m_renderData.lights;
-    m_light_MVPs.resize(numLights);
-
-    glm::mat4 depthModelMatrix = glm::mat4(1.0f);
 
     for (int i = 0; i < numLights; i++) {
-        SceneLightData light = lights[i];
+        const SceneLightData &light = lights[i];
 
-        glm::mat4 depthProj;
-        glm::mat4 depthView;
+        glm::mat4 depthProjectionMatrix(1.0f);
+        glm::mat4 depthViewMatrix(1.0f);
 
-        if (light.type == LightType::LIGHT_DIRECTIONAL) {
+        switch (light.type) {
+        case LightType::LIGHT_DIRECTIONAL: {
+            // Directional light: direction in world space
+            glm::vec3 dir = glm::normalize(glm::vec3(light.dir));
 
-            glm::vec3 lightDir = -glm::vec3(light.dir);
-            glm::vec3 eye = lightDir;   // directional lights use direction as "position"
-            glm::vec3 center = glm::vec3(0,0,0);
+            // Position the "shadow camera" back along the light direction
+            glm::vec3 eye = sceneCenter - dir * sceneRadius * 2.0f;
 
-            glm::vec3 up;
-            if (fabs(glm::dot(glm::normalize(lightDir), glm::vec3(0,1,0))) > 0.99f)
-                up = glm::vec3(0,0,1);
-            else
-                up = glm::vec3(0,1,0);
+            glm::vec3 up(0.0f, 1.0f, 0.0f);
+            if (fabs(glm::dot(dir, up)) > 0.99f) {
+                up = glm::vec3(0.0f, 0.0f, 1.0f);
+            }
 
-            // manual ortho
-            depthProj = manualOrtho(-10.f, 10.f, -10.f, 10.f, settings.nearPlane, settings.farPlane);
+            depthViewMatrix = glm::lookAt(eye, sceneCenter, up);
 
-            // manual lookAt
-            depthView = manualLookAt(eye, center, up);
+            depthProjectionMatrix = glm::ortho(
+                -sceneRadius, sceneRadius,
+                -sceneRadius, sceneRadius,
+                shadowNear, shadowFar
+                );
+            break;
         }
-        else if (light.type == LightType::LIGHT_SPOT) {
 
+        case LightType::LIGHT_SPOT: {
             glm::vec3 pos = glm::vec3(light.pos);
-            glm::vec3 lightDir = -glm::vec3(light.dir);
-            glm::vec3 center = pos - lightDir;
+            glm::vec3 dir = glm::normalize(glm::vec3(light.dir));
 
-            glm::vec3 up;
-            if (fabs(glm::dot(glm::normalize(lightDir), glm::vec3(0,1,0))) > 0.99f)
-                up = glm::vec3(0,0,1);
-            else
-                up = glm::vec3(0,1,0);
+            // Outer cone ~ angle + penumbra; full FOV = 2 * outer
+            float outer = light.angle + light.penumbra;
+            float fovy  = 2.0f * outer;
+            // clamp to something sane
+            fovy = glm::clamp(fovy, glm::radians(5.0f), glm::radians(170.0f));
 
-            // manual perspective
-            depthProj = manualPerspective(glm::radians(90.0f), 1.0f, settings.nearPlane, settings.farPlane);
+            depthProjectionMatrix = glm::perspective(
+                fovy,           // vertical FOV
+                1.0f,           // square shadow map
+                shadowNear,
+                shadowFar
+                );
 
-            // manual lookAt
-            depthView = manualLookAt(pos, center, up);
+            glm::vec3 up(0.0f, 1.0f, 0.0f);
+            if (fabs(glm::dot(dir, up)) > 0.99f) {
+                up = glm::vec3(0.0f, 0.0f, 1.0f);
+            }
+
+            depthViewMatrix = glm::lookAt(pos, pos + dir, up);
+            break;
         }
-        else {
-            // ignore unsupported light types
-            m_light_MVPs[i] = glm::mat4(1.0f);
-            continue;
+
+        default:
+            // We don't create shadow maps for point lights here
+            depthProjectionMatrix = glm::mat4(1.0f);
+            depthViewMatrix       = glm::mat4(1.0f);
+            break;
         }
 
-        m_light_MVPs[i] = depthProj * depthView * depthModelMatrix;
+        // IMPORTANT: this is P * V ONLY (no model).
+        m_light_MVPs[i] = depthProjectionMatrix * depthViewMatrix;
     }
 }
+
 
 
 void Realtime::paintShadows() {
