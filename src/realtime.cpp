@@ -77,12 +77,19 @@ void Realtime::finish() {
     }
     if (m_fbo_shadow) glDeleteFramebuffers(1, &m_fbo_shadow);
 
+    // --- Bump mapping height map ---
+    if (m_height_map) {
+        glDeleteTextures(1, &m_height_map);
+        m_height_map = 0;
+    }
+
     // --- HDR + camera trace systems ---
     m_hdr.destroy();
     m_camTrace.destroy();
 
     doneCurrent();
 }
+
 
 // ======================================================================
 // Hard-coded camera path
@@ -111,34 +118,73 @@ void Realtime::buildShape(GLShape &shape,
                           const glm::mat4 &M)
 {
     shape.destroy();
-    shape.count = static_cast<int>(data.size() / 8);
+
+    if (data.empty()) {
+        shape.count = 0;
+        shape.model = M;
+        return;
+    }
+
+    // ------------------------------------------------------------
+    // Detect how many floats per vertex we actually have
+    //  - 8: pos(3) + nor(3) + uv(2)
+    //  - 6: pos(3) + nor(3)
+    //  - 3: pos(3)
+    // ------------------------------------------------------------
+    int floatsPerVertex = 0;
+
+    if (data.size() % 6 == 0) {
+        floatsPerVertex = 6;
+    } else if (data.size() % 8 == 0) {
+        floatsPerVertex = 8;
+    } else if (data.size() % 3 == 0) {
+        floatsPerVertex = 3;
+    } else {
+        // Fallback: assume pos+normal
+        floatsPerVertex = 6;
+    }
+
+    shape.count = static_cast<int>(data.size() / floatsPerVertex);
 
     glGenVertexArrays(1, &shape.vao);
     glGenBuffers(1, &shape.vbo);
 
     glBindVertexArray(shape.vao);
     glBindBuffer(GL_ARRAY_BUFFER, shape.vbo);
-    glBufferData(GL_ARRAY_BUFFER, data.size() * sizeof(float),
-                 data.data(), GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER,
+                 data.size() * sizeof(float),
+                 data.data(),
+                 GL_STATIC_DRAW);
 
-    // pos
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE,
-                          8 * sizeof(float), (void*)0);
+    GLsizei stride = floatsPerVertex * sizeof(float);
+
+    // --- Position (always present) ---
     glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE,
+                          stride, (void*)0);
 
-    // nor
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE,
-                          8 * sizeof(float), (void*)(3 * sizeof(float)));
-    glEnableVertexAttribArray(1);
+    // --- Normal (if present) ---
+    if (floatsPerVertex >= 6) {
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE,
+                              stride, (void*)(3 * sizeof(float)));
+    } else {
+        glDisableVertexAttribArray(1);
+    }
 
-    // uv
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE,
-                          8 * sizeof(float), (void*)(5 * sizeof(float)));
-    glEnableVertexAttribArray(2);
+    // --- UV (if present) ---
+    if (floatsPerVertex == 8) {
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE,
+                              stride, (void*)(6 * sizeof(float)));
+    } else {
+        glDisableVertexAttribArray(2);
+    }
 
     glBindVertexArray(0);
     shape.model = M;
 }
+
 
 // ======================================================================
 // initializeGL
@@ -162,6 +208,9 @@ void Realtime::initializeGL() {
     glViewport(0, 0,
                width()  * m_devicePixelRatio,
                height() * m_devicePixelRatio);
+
+    // Optional, but nice: match teammate's clear color
+    glClearColor(0.f, 0.f, 0.f, 1.f);
 
     // Store Qt's default FBO, NOT a magic "3"
     m_defaultFBO = defaultFramebufferObject();
@@ -196,9 +245,16 @@ void Realtime::initializeGL() {
 
     // --- Shadow-map FBO (depth-only) ---
     initializeShadowFBO();
-    
-    // uvs and textures
+
+    // --- Trimesh texture (if you use it) ---
     glGenTextures(1, &m_mesh_texture);
+
+    // --- Bump mapping height map ---
+    // Use the same image your teammate used; if it's in the Qt resource system,
+    // keep the ":/resources/..." prefix; otherwise use "resources/...".
+    loadHeightMap2D(":/resources/images/pattern.png");
+    // or, if you're not using qrc for images:
+    // loadHeightMap2D("resources/images/pattern.png");
 
     // --- Camera trace & path ---
     m_camTrace.init();
@@ -208,163 +264,6 @@ void Realtime::initializeGL() {
     sceneChanged();
 }
 
-// ======================================================================
-// Lighting + material uniforms helper
-// ======================================================================
-
-void Realtime::shader(const RenderShapeData& shape,
-                      const std::vector<SceneLightData>& lights)
-{
-    SceneGlobalData global   = m_renderData.globalData;
-    SceneMaterial   material = shape.primitive.material;
-
-    // *** CRUCIAL: match the uniform names in default.frag ***
-    glm::vec3 Ka = global.ka * glm::vec3(material.cAmbient);
-    glm::vec3 Kd = global.kd * glm::vec3(material.cDiffuse);
-    glm::vec3 Ks = global.ks * glm::vec3(material.cSpecular);
-
-    // MATCH default.frag: ka, kd, ks
-    glUniform3fv(glGetUniformLocation(m_shader, "ka"), 1, &Ka[0]);
-    glUniform3fv(glGetUniformLocation(m_shader, "kd"), 1, &Kd[0]);
-    glUniform3fv(glGetUniformLocation(m_shader, "ks"), 1, &Ks[0]);
-    glUniform1f(glGetUniformLocation(m_shader, "shininess"),
-                material.shininess);
-
-    // Upload lights
-    int n = std::min<int>(lights.size(), numLights);
-    for (int i = 0; i < n; i++) {
-        const SceneLightData &light = lights[i];
-
-        std::string base = "lights[" + std::to_string(i) + "].";
-
-        glUniform1i(glGetUniformLocation(m_shader, (base + "type").c_str()),
-                    int(light.type));
-
-        glm::vec3 color = glm::vec3(light.color);
-        glUniform3fv(glGetUniformLocation(m_shader, (base + "color").c_str()),
-                     1, &color[0]);
-
-        glm::vec3 pos = glm::vec3(light.pos);
-        glm::vec3 dir = glm::normalize(glm::vec3(light.dir));
-        glUniform3fv(glGetUniformLocation(m_shader, (base + "pos").c_str()),
-                     1, &pos[0]);
-        glUniform3fv(glGetUniformLocation(m_shader, (base + "dir").c_str()),
-                     1, &dir[0]);
-
-        glm::vec3 function = glm::vec3(light.function);
-        glUniform3fv(glGetUniformLocation(m_shader, (base + "function").c_str()),
-                     1, &function[0]);
-
-        glUniform1f(glGetUniformLocation(m_shader, (base + "angle").c_str()),
-                    light.angle);
-        glUniform1f(glGetUniformLocation(m_shader, (base + "penumbra").c_str()),
-                    light.penumbra);
-    }
-}
-
-
-// ======================================================================
-// paintGeometry  (Phong + optional soft shadows)
-// ======================================================================
-
-void Realtime::paintGeometry() {
-    glUseProgram(m_shader);
-
-    int fbWidth  = width()  * m_devicePixelRatio;
-    int fbHeight = height() * m_devicePixelRatio;
-    float aspect = float(fbWidth) / float(fbHeight);
-
-    // Use the same camera that timer/mouse update & camera trace use
-    glm::mat4 view = m_camera.getViewMatrix();
-    glm::mat4 proj = m_camera.getProjectionMatrix(
-        aspect,
-        settings.nearPlane,
-        settings.farPlane
-        );
-
-    m_view = view;
-    m_proj = proj;
-
-    glUniformMatrix4fv(glGetUniformLocation(m_shader, "view"),
-                       1, GL_FALSE, &m_view[0][0]);
-    glUniformMatrix4fv(glGetUniformLocation(m_shader, "proj"),
-                       1, GL_FALSE, &m_proj[0][0]);
-
-    glm::vec3 camPos = glm::vec3(m_camera.pos);
-    glUniform3fv(glGetUniformLocation(m_shader, "cameraPos"),
-                 1, glm::value_ptr(camPos));
-
-    // ------------------------------------------------------------------
-    // Shadow uniforms & binding are toggled by settings.extraCredit4
-    // extraCredit4 == 0  -> behave like original implementation (no depth shadows)
-    // extraCredit4 != 0  -> use depth maps + soft shadows
-    // ------------------------------------------------------------------
-    bool useDepthShadows = (settings.extraCredit4 != 0);
-
-    glUniform1i(glGetUniformLocation(m_shader, "shadowSize"),
-                useDepthShadows ? m_shadow_size : 0);
-    glUniform1i(glGetUniformLocation(m_shader, "softShadows"),
-                useDepthShadows ? 1 : 0);
-
-    int nLights = std::min<int>(numLights, m_renderData.lights.size());
-    glUniform1i(glGetUniformLocation(m_shader, "numLights"), nLights);
-
-    if (useDepthShadows) {
-        for (int i = 0; i < nLights; i++) {
-            std::string mvpName = "lightMVPs[" + std::to_string(i) + "]";
-            glUniformMatrix4fv(glGetUniformLocation(m_shader, mvpName.c_str()),
-                               1, GL_FALSE, &m_light_MVPs[i][0][0]);
-
-            glActiveTexture(GL_TEXTURE0 + i);
-            glBindTexture(GL_TEXTURE_2D, m_shadow_maps[i]);
-            std::string smName = "shadowMaps[" + std::to_string(i) + "]";
-            glUniform1i(glGetUniformLocation(m_shader, smName.c_str()), i);
-        }
-    }
-    // If !useDepthShadows, we do NOT bind shadow maps.
-    // Fragment shader should skip any sampling based on softShadows/shadowSize.
-
-    // ==== Draw analytic primitives via m_objects ====
-    size_t objIdx = 0;
-    for (const RenderShapeData &shape : m_renderData.shapes) {
-        PrimitiveType t = shape.primitive.type;
-
-        if (objIdx >= m_objects.size()) break;
-        GLShape &obj = m_objects[objIdx++];
-
-        // Model / normal matrices
-        m_model       = obj.model;
-        m_normalModel = glm::transpose(glm::inverse(obj.model));
-        glUniformMatrix4fv(glGetUniformLocation(m_shader, "model"),
-                           1, GL_FALSE, &m_model[0][0]);
-        glUniformMatrix4fv(glGetUniformLocation(m_shader, "normalModel"),
-                           1, GL_FALSE, &m_normalModel[0][0]);
-
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, m_mesh_texture);
-        glUniform1i(glGetUniformLocation(m_shader, "sampler"), 0);
-        
-        if (shape.primitive.material.textureMap.isUsed) {
-            glUniform1i(glGetUniformLocation(m_shader, "useTexture"), 1);
-            QImage m_image = shape.primitive.material.textureMap.texture;
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, m_image.width(), m_image.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, m_image.bits());
-        }
-
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-
-        // Upload material & lights
-        shader(shape, m_renderData.lights);
-
-        glBindVertexArray(obj.vao);
-        glDrawArrays(obj.mode, 0, obj.count);
-        glBindTexture(GL_TEXTURE_2D, 0);
-    }
-
-    glBindVertexArray(0);
-    glUseProgram(0);
-}
 
 // ======================================================================
 // paintGL  (HDR + optional soft shadows + camera trace)

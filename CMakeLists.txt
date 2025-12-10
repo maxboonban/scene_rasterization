@@ -62,6 +62,7 @@ add_executable(${PROJECT_NAME}
     src/shadowmap.cpp
     src/fbo.cpp
     src/trimeshes.cpp
+    src/phong.cpp
 
 
     src/utils/tiny_obj_loader.h

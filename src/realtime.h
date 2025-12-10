@@ -6,6 +6,7 @@
 
 #include <GL/glew.h>
 #include <glm/glm.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 #include <unordered_map>
 #include <vector>
@@ -169,5 +170,10 @@ private:
     void shader(const RenderShapeData& shape, const std::vector<SceneLightData>& lights);
     void uploadLights();
     void paintGeometry();
+
+    GLuint m_height_map;
+    QImage m_image;
+    void loadHeightMap2D(const std::string &filename);
+    std::vector<float> loadOBJ(const std::string& filename);
 };
 
