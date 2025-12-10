@@ -4,7 +4,8 @@
 #include <string>
 
 #include <glm/glm.hpp>
-#include <utils/imagereader.h>
+#include <QString>
+#include <QImage>
 
 // Enum of the types of virtual lights that might be in the scene
 enum class LightType {
@@ -92,7 +93,7 @@ struct SceneFileMap {
 
     bool isUsed;
     std::string filename;
-    Image *texture;
+    QImage texture;
 
     float repeatU;
     float repeatV;

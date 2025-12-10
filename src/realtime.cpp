@@ -111,7 +111,7 @@ void Realtime::buildShape(GLShape &shape,
                           const glm::mat4 &M)
 {
     shape.destroy();
-    shape.count = static_cast<int>(data.size() / 6);
+    shape.count = static_cast<int>(data.size() / 8);
 
     glGenVertexArrays(1, &shape.vao);
     glGenBuffers(1, &shape.vbo);
@@ -123,13 +123,18 @@ void Realtime::buildShape(GLShape &shape,
 
     // pos
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE,
-                          6 * sizeof(float), (void*)0);
+                          8 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
 
     // nor
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE,
-                          6 * sizeof(float), (void*)(3 * sizeof(float)));
+                          8 * sizeof(float), (void*)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
+
+    // uv
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE,
+                          8 * sizeof(float), (void*)(5 * sizeof(float)));
+    glEnableVertexAttribArray(2);
 
     glBindVertexArray(0);
     shape.model = M;
@@ -191,6 +196,9 @@ void Realtime::initializeGL() {
 
     // --- Shadow-map FBO (depth-only) ---
     initializeShadowFBO();
+    
+    // uvs and textures
+    glGenTextures(1, &m_mesh_texture);
 
     // --- Camera trace & path ---
     m_camTrace.init();
@@ -332,11 +340,26 @@ void Realtime::paintGeometry() {
         glUniformMatrix4fv(glGetUniformLocation(m_shader, "normalModel"),
                            1, GL_FALSE, &m_normalModel[0][0]);
 
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, m_mesh_texture);
+        glUniform1i(glGetUniformLocation(m_shader, "sampler"), 0);
+        
+        if (shape.primitive.material.textureMap.isUsed) {
+            glUniform1i(glGetUniformLocation(m_shader, "useTexture"), 1);
+            QImage m_image = shape.primitive.material.textureMap.texture;
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, m_image.width(), m_image.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, m_image.bits());
+        }
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+
         // Upload material & lights
         shader(shape, m_renderData.lights);
 
         glBindVertexArray(obj.vao);
         glDrawArrays(obj.mode, 0, obj.count);
+        glBindTexture(GL_TEXTURE_2D, 0);
     }
 
     glBindVertexArray(0);

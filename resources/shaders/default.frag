@@ -3,6 +3,11 @@
 in vec3 posWorld;
 in vec3 normWorld;
 in vec4 posLightSpace[8];
+in vec2 uvOut;
+
+uniform bool useTexture;
+uniform sampler2D sampler;
+
 out vec4 fragColor;
 
 struct Light {
@@ -150,7 +155,9 @@ void main()
         // --------------------------------------------
         // Diffuse
         // --------------------------------------------
-        vec3 diffuse = kd * NdotL;
+        vec3 diffuse;
+        if (!useTexture) diffuse = kd * NdotL;
+        else diffuse = vec3(texture(sampler, uvOut)) * NdotL;
 
         // --------------------------------------------
         // Specular

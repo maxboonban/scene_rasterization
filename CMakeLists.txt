@@ -64,8 +64,7 @@ add_executable(${PROJECT_NAME}
     src/trimeshes.cpp
 
 
-    src/utils/tiny_obj_loader.h 
-    src/utils/imagereader.h src/utils/imagereader.cpp
+    src/utils/tiny_obj_loader.h
     src/utils/rgba.h
 
 
@@ -100,6 +99,11 @@ qt6_add_resources(${PROJECT_NAME} "Resources"
         resources/shaders/texture.vert
 	resources/shaders/shadowmap.frag
         resources/shaders/shadowmap.vert
+        "resources/textures/Red Gingham.jpg"
+        "resources/textures/seamless-textures-PARQUET-WOOD-FLOORING-29b.jpg"
+        "resources/textures/Tace Map.jpg"
+        "resources/textures/Teask.jpg"
+        "resources/textures/Wood.jpg"
 )
 
 # GLEW: this provides support for Windows (including 64-bit)

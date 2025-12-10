@@ -141,6 +141,7 @@ private:
     //
     // Meshes
     //
+    GLuint m_mesh_texture;
     std::unordered_map<PrimitiveMeshKey, PrimitiveMeshGL, PrimitiveMeshKeyHash> m_meshes;
     std::vector<float> buildVertices(const ScenePrimitive& primitive) const;
     PrimitiveMeshGL& getMesh(const ScenePrimitive& primitive);
