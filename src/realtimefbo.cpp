@@ -2,14 +2,6 @@
 #include "iostream"
 
 void Realtime::makeFBO() {
-    // // color texture
-    // glGenTextures(1, &m_fbo_texture);
-    // glActiveTexture(GL_TEXTURE0);
-    // glBindTexture(GL_TEXTURE_2D, m_fbo_texture);
-    // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, m_fbo_width, m_fbo_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    // glBindTexture(GL_TEXTURE_2D, 0);
 
     // Delete old textures if they exist
     if (m_fbo_texture != 0) glDeleteTextures(1, &m_fbo_texture);
@@ -65,7 +57,7 @@ void Realtime::makeFBO() {
     }
 
     // unbind FBO
-    glBindFramebuffer(GL_FRAMEBUFFER, m_defaultFBO);
+    glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
 }
 
 void Realtime::initializeFBO() {
@@ -104,32 +96,6 @@ void Realtime::initializeFBO() {
     makeFBO();
 }
 
-// Create two horizontal/vertical blur passes
-void Realtime::initializeBloomFBOs() {
-    // Create ping-pong FBOs for blurring
-    glGenFramebuffers(2, m_fbo_pingpong);
-    glGenTextures(2, m_fbo_pingpong_texture);
-
-    for (int i = 0; i < 2; i++) {
-        glBindFramebuffer(GL_FRAMEBUFFER, m_fbo_pingpong[i]);
-
-        glBindTexture(GL_TEXTURE_2D, m_fbo_pingpong_texture[i]);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, m_fbo_width, m_fbo_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glBindTexture(GL_TEXTURE_2D, 0);
-
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_fbo_pingpong_texture[i], 0);
-
-        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-            std::cerr << "Ping-pong framebuffer " << i << " not complete!" << std::endl;
-        }
-    }
-
-    glBindFramebuffer(GL_FRAMEBUFFER, m_defaultFBO);
-}
 
 void Realtime::paintTexture(GLuint colorTexture, GLuint depthTexture) {
     glUseProgram(m_texture_shader);
@@ -149,5 +115,106 @@ void Realtime::paintTexture(GLuint colorTexture, GLuint depthTexture) {
     glDrawArrays(GL_TRIANGLES, 0, 6);
     glBindVertexArray(0);
 
+    glUseProgram(0);
+}
+
+// Create two horizontal/vertical blur passes
+void Realtime::initializeBloomFBOs() {
+    // Create ping-pong FBOs for blurring
+    glGenFramebuffers(2, m_fbo_pingpong);
+    glGenTextures(2, m_fbo_pingpong_texture);
+
+    for (int i = 0; i < 2; i++) {
+        glBindFramebuffer(GL_FRAMEBUFFER, m_fbo_pingpong[i]);
+
+        glBindTexture(GL_TEXTURE_2D, m_fbo_pingpong_texture[i]);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, m_fbo_width, m_fbo_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glBindTexture(GL_TEXTURE_2D, 0);
+
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_fbo_pingpong_texture[i], 0);
+    }
+
+    // glBindFramebuffer(GL_FRAMEBUFFER, m_defaultFBO);
+    glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
+
+}
+
+void Realtime::renderBloom() {
+    // Step 1: Extract bright colors to m_fbo_bloom_bright
+    glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
+
+    glDrawBuffer(GL_COLOR_ATTACHMENT1);
+    glViewport(0, 0, m_fbo_width, m_fbo_height);
+    glDisable(GL_DEPTH_TEST);
+
+    glUseProgram(m_bloom_extract_shader);
+    glBindVertexArray(m_fullscreen_vao);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, m_fbo_texture);
+    glUniform1i(glGetUniformLocation(m_bloom_extract_shader, "sceneTexture"), 0);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glBindVertexArray(0);
+    glUseProgram(0);
+
+    // Blur the bright colors texture using ping-pong
+    bool horizontal = true;
+    bool first_iteration = true;
+    int amount = 10; // Number of gaussian blur passes (more = stronger blur)
+
+    glUseProgram(m_blur_shader);
+    glBindVertexArray(m_fullscreen_vao);
+
+    for (int i = 0; i < amount; i++) {
+        // Bind the appropriate FBO
+        glBindFramebuffer(GL_FRAMEBUFFER, m_fbo_pingpong[horizontal]);
+
+        // Set horizontal uniform
+        glUniform1i(glGetUniformLocation(m_blur_shader, "horizontal"), horizontal ? 1 : 0);
+
+        // Bind the source texture
+        glActiveTexture(GL_TEXTURE0);
+        if (first_iteration) {
+            // First pass: blur the bright colors texture
+            glBindTexture(GL_TEXTURE_2D, m_fbo_bloom_bright);
+        } else {
+            // Subsequent passes: blur the ping-pong texture
+            glBindTexture(GL_TEXTURE_2D, m_fbo_pingpong_texture[!horizontal]);
+        }
+        glUniform1i(glGetUniformLocation(m_blur_shader, "image"), 0);
+
+        // Render fullscreen quad
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+        // Switch direction for next pass
+        horizontal = !horizontal;
+        if (first_iteration) first_iteration = false;
+    }
+
+    // Composite scene + bloom
+    glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
+
+    // Set viewport for default framebuffer
+    glViewport(0, 0, size().width() * m_devicePixelRatio, size().height() * m_devicePixelRatio);
+
+    glUseProgram(m_bloom_composite_shader);
+
+    // Bind scene texture
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, m_fbo_texture);
+    glUniform1i(glGetUniformLocation(m_bloom_composite_shader, "sceneTexture"), 0);
+
+    // Bind blurred bloom texture (from last ping-pong pass)
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, m_fbo_pingpong_texture[!horizontal]);
+    glUniform1i(glGetUniformLocation(m_bloom_composite_shader, "bloomTexture"), 1);
+
+    // Render final result
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    glBindVertexArray(0);
     glUseProgram(0);
 }

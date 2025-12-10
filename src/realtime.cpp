@@ -53,6 +53,14 @@ void Realtime::finish() {
     // bump mapping memory
     glDeleteTextures(1, &m_height_map);
 
+    // bloom memory
+    glDeleteTextures(1, &m_fbo_bloom_bright);
+    glDeleteTextures(2, m_fbo_pingpong_texture);
+    glDeleteFramebuffers(2, m_fbo_pingpong);
+    glDeleteProgram(m_bloom_extract_shader);
+    glDeleteProgram(m_blur_shader);
+    glDeleteProgram(m_bloom_composite_shader);
+
     this->doneCurrent();
 }
 
@@ -65,25 +73,18 @@ void Realtime::initializeGL() {
     // Initializing GL.
     // GLEW (GL Extension Wrangler) provides access to OpenGL functions.
     glewExperimental = GL_TRUE;
-    GLenum err = glewInit();
-    if (err != GLEW_OK) {
-        std::cerr << "Error while initializing GL: " << glewGetErrorString(err) << std::endl;
-    }
-    std::cout << "Initialized GL: Version " << glewGetString(GLEW_VERSION) << std::endl;
 
     // Allows OpenGL to draw objects appropriately on top of one another
     glEnable(GL_DEPTH_TEST);
-    // // Tells OpenGL to only draw the front face
-    // glEnable(GL_CULL_FACE);
-    // // draw both faces
-    // glCullFace(GL_FRONT_AND_BACK);
     glDisable(GL_CULL_FACE);
     // Tells OpenGL how big the screen is
     glViewport(0, 0, size().width() * m_devicePixelRatio, size().height() * m_devicePixelRatio);
 
     // Students: anything requiring OpenGL calls when the program starts should be done here
 
-    m_defaultFBO = 3;
+    // m_defaultFBO = 3;    // used slot 3 before bloom
+    m_defaultFBO = defaultFramebufferObject();
+
     m_screen_width = size().width() * m_devicePixelRatio;
     m_screen_height = size().height() * m_devicePixelRatio;
 
@@ -107,8 +108,8 @@ void Realtime::initializeGL() {
                                                                  "resources/shaders/bloom_composite.frag");
 
     initializeFBO();
-    initializeShadowFBO();
     initializeBloomFBOs();
+    initializeShadowFBO();
     loadHeightMap2D("resources/images/pattern.png");
 }
 
@@ -121,24 +122,36 @@ void Realtime::paintGL() {
 
     // bind FBO
     glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
+
     m_fbo_width = size().width()  * m_devicePixelRatio;
     m_fbo_height = size().height() * m_devicePixelRatio;
     glViewport(0, 0, m_fbo_width, m_fbo_height);
 
+    // Clear both attachments
+    GLfloat clearColor[] = {0.0f, 0.0f, 0.0f, 1.0f};
+    glClearBufferfv(GL_COLOR, 0, clearColor);
+    glClearBufferfv(GL_COLOR, 1, clearColor);
+    glClear(GL_DEPTH_BUFFER_BIT);
+
+    // Set draw buffers to only attachment 0 for geometry rendering
+    GLuint attachments[1] = { GL_COLOR_ATTACHMENT0 };
+    glDrawBuffers(1, attachments);
+
     // phong
     glEnable(GL_DEPTH_TEST);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     paintGeometry();
 
     // bind default framebuffer
     glBindFramebuffer(GL_FRAMEBUFFER, m_defaultFBO);
 
-    // clear the color buffers
-    glDisable(GL_DEPTH_TEST);
+    glViewport(0, 0, size().width() * m_devicePixelRatio, size().height() * m_devicePixelRatio);
+
     glClear(GL_COLOR_BUFFER_BIT);
 
-    // draw FBO color and depth attachment textures
-    paintTexture(m_fbo_texture, m_fbo_depth);
+    renderBloom();
+
+    // // draw FBO color and depth attachment textures
+    // paintTexture(m_fbo_texture, m_fbo_depth);
 }
 
 void Realtime::resizeGL(int w, int h) {
@@ -147,12 +160,18 @@ void Realtime::resizeGL(int w, int h) {
 
     // Students: anything requiring OpenGL calls when the program starts should be done here
     glDeleteTextures(1, &m_fbo_texture);
+    glDeleteTextures(1, &m_fbo_bloom_bright);
     glDeleteTextures(1, &m_fbo_depth);
     glDeleteFramebuffers(1, &m_fbo);
+
+    // Also delete ping-pong textures and FBOs
+    glDeleteTextures(2, m_fbo_pingpong_texture);
+    glDeleteFramebuffers(2, m_fbo_pingpong);
 
     m_fbo_width = size().width() * m_devicePixelRatio;
     m_fbo_height = size().height() * m_devicePixelRatio;
     makeFBO();
+    initializeBloomFBOs(); // Recreate bloom FBOs with new size
 }
 
 void Realtime::sceneChanged() {
